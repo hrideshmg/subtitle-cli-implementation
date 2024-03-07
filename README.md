@@ -20,9 +20,9 @@ Create a[ CLI](https://en.wikipedia.org/wiki/Command-line_interface) app using P
     2. -d, --download (automatically downloads top subtitle)
 * Find the IMDb ID of the given movie
 * Use beautifulsoup4 to scrape[ opensubtitles](https://www.opensubtitles.org/en/search/subs) and obtain the list of subtitles. Make sure to follow these guidelines:
-    3. Searching should be done by using prior obtained IMDb ID
-    4. Any filters specified by the options should be applied
-    5. The results should be sorted by _“Download Times” _in descending order
+  1. Searching should be done by using prior obtained IMDb ID
+  2. Any filters specified by the options should be applied
+  3. The results should be sorted by _"Download Times"_ in descending order
 * Prompt and download the chosen subtitle to the local directory
 * Provide a clean user interface, complete with loading indicators and basic error handling
 * Validate that the app works by testing it on this file:[ Movie](https://archive.org/download/plan-9-from-outer-space/plan-9-from-outer-space.mpeg4)
