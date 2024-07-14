@@ -1,5 +1,7 @@
 import pathlib
 import re
+import os
+from hasher import hashFile_url
 
 import click
 import requests
@@ -17,28 +19,30 @@ def scrape_webpage(url):
     subtitles = []
     try:
         for row in results_table.find_all("tr", id=re.compile("^name")):
-            file_info = (
-                row.find("td", id=re.compile("^main")).find("br").next_sibling.strip()
-            )
+            first_column = row.find("td", id=re.compile("^main"))
+            file_info = first_column.find("span")
+            if file_info:
+                file_info = file_info["title"]
+            else:
+                file_info = first_column.find("a").text
             download_link = ROOT_URL + row.find_all("td")[4].a["href"]
-            subtitles.append((file_info, download_link))
-    except:
-        pass
+            subtitles.append((file_info.replace("\n", " "), download_link))
+    except Exception as e:
+        print(e)
     return subtitles
 
 
-def download_subtitle(name, url):
+def download_subtitle(path, url):
     subtitle_data = requests.get(url).content
-    with open(name, "wb") as file:
+
+    with open(path + ".srt", "wb") as file:
         file.write(subtitle_data)
 
 
 @click.command()
 @click.argument(
-    "filename",
-    type=click.Path(
-        exists=True, dir_okay=False, writable=False, path_type=pathlib.Path
-    ),
+    "path",
+    type=click.Path(exists=True, dir_okay=True, writable=False, path_type=pathlib.Path),
 )
 @click.option(
     "-l",
@@ -47,49 +51,74 @@ def download_subtitle(name, url):
     help="language to filter by, codes specified by ISO 639-2",
 )
 @click.option(
-    "-d",
-    "--download",
+    "-s", "--file-size", default=False, is_flag=True, help="filter by the file bytesize"
+)
+@click.option(
+    "-h", "--match-by-hash", default=False, is_flag=True, help="filter by the file hash"
+)
+@click.option(
+    "-b",
+    "--batch-download",
     default=False,
     is_flag=True,
-    help="downloads top subtitle automatically",
+    help="Enables batch download, specify directory instead of file",
 )
-def find_sub(filename, language, download):
+def cli(path, language, file_size, match_by_hash, batch_download):
     """Finds the Subtitle given the filename"""
 
-    # removes the path and extension from filename
-    filename = filename.stem
+    def find_sub(filename):
+        searcher = Cinemagoer()
+        movies = searcher.search_movie(filename)
+        if not movies:
+            click.echo("Could not find IMDb Entry for this movie!")
+            return
+        imdb_id = movies[0].movieID
 
-    searcher = Cinemagoer()
-    movies = searcher.search_movie(filename)
-    if not movies:
-        click.echo("Could not find IMDb Entry for this movie!")
-        return
-    imdb_id = movies[0].movieID
+        query_url = ROOT_URL + f"/en/search/sublanguageid-{language}/imdbid-{imdb_id}"
+        if file_size:
+            bytes = os.path.getsize(file)
+            query_url += f"/moviebytesize-{bytes}"
+        if match_by_hash:
+            file_hash = hashFile_url(file)
+            query_url += f"/moviehash-{file_hash}"
+        query_url += "/sort-7/asc-0"
 
-    query_url = (
-        ROOT_URL + f"/en/search/sublanguageid-{language}/imdbid-{imdb_id}/sort-7/asc-0"
-    )
-    subtitles = scrape_webpage(query_url)
+        return scrape_webpage(query_url)
 
-    if not subtitles:
-        click.echo("Could not find any subtitles for movie with specified filters!")
-        return
+    if batch_download:
+        if not os.path.isdir(path):
+            click.echo("Given path is not a directory!")
+        else:
+            files = os.listdir(path)
+            for file in files:
+                subtitles = find_sub(file.split(".")[0])
+                if not subtitles:
+                    click.echo(
+                        f"Could not find any subtitles for {path} with specified filters!"
+                    )
+                else:
+                    name, url = subtitles[0]
+                    download_subtitle(os.path.join(path, name), url)
 
-    # If download option is specified don't prompt user with list of subtitles
-    if download:
-        name, url = subtitles[0]
-        download_subtitle(name, url)
     else:
+        filename = path.stem
+        subtitles = find_sub(filename)
+        if not subtitles:
+            click.echo(
+                f"Could not find any subtitles for {path} with specified filters!"
+            )
+            return
+
         for index, subtitle in enumerate(subtitles, start=1):
             click.echo(f"{index}: {subtitle[0]}")
         chosen_index = click.prompt(
             "Which subtitle would you like to download?",
-            type=click.IntRange(1, len(movies)),
+            type=click.IntRange(1, len(subtitles)),
             default=1,
         )
-        name, url = subtitles[chosen_index]
+        name, url = subtitles[chosen_index - 1]
         download_subtitle(name, url)
 
 
 if __name__ == "__main__":
-    find_sub()
+    cli()
