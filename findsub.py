@@ -1,8 +1,9 @@
+import os
 import pathlib
 import re
 import os
 from hasher import hashFile_url
-
+from hasher import hashFile_url
 import click
 import requests
 from bs4 import BeautifulSoup
@@ -32,10 +33,10 @@ def scrape_webpage(url):
     return subtitles
 
 
-def download_subtitle(path, url):
+def download_subtitle(name, url, output):
     subtitle_data = requests.get(url).content
-
-    with open(path + ".srt", "wb") as file:
+    path = os.path.join(output, name)
+    with open(path, "wb") as file:
         file.write(subtitle_data)
 
 
@@ -63,7 +64,14 @@ def download_subtitle(path, url):
     is_flag=True,
     help="Enables batch download, specify directory instead of file",
 )
-def cli(path, language, file_size, match_by_hash, batch_download):
+@click.option(
+    "-o",
+    "--output",
+    help="specifies the output directory for the subtitle",
+    default=".",
+    type=click.Path(exists=True, dir_okay=True, path_type=pathlib.Path),
+)
+def cli(path, language, file_size, match_by_hash, batch_download, output):
     """Finds the Subtitle given the filename"""
 
     def find_sub(filename):
@@ -117,7 +125,7 @@ def cli(path, language, file_size, match_by_hash, batch_download):
             default=1,
         )
         name, url = subtitles[chosen_index - 1]
-        download_subtitle(name, url)
+        download_subtitle(name, url, output)
 
 
 if __name__ == "__main__":
